@@ -10,11 +10,9 @@ local character = player.Character or player.CharacterAdded:Wait()
 local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
 local humanoid = character:WaitForChild("Humanoid")
 
--- Flight variables
 local flying = false
 local speed = 50
-local bodyVelocity
-local bodyGyro
+local flyConnection
 
 -- Create GUI
 local screenGui = Instance.new("ScreenGui")
@@ -22,7 +20,6 @@ screenGui.Name = "FlyGui"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
--- ON Button (Green)
 local onButton = Instance.new("TextButton")
 onButton.Name = "OnButton"
 onButton.Size = UDim2.new(0, 100, 0, 50)
@@ -34,7 +31,6 @@ onButton.Text = "FLY ON"
 onButton.Font = Enum.Font.GothamBold
 onButton.Parent = screenGui
 
--- OFF Button (Red)
 local offButton = Instance.new("TextButton")
 offButton.Name = "OffButton"
 offButton.Size = UDim2.new(0, 100, 0, 50)
@@ -46,7 +42,6 @@ offButton.Text = "FLY OFF"
 offButton.Font = Enum.Font.GothamBold
 offButton.Parent = screenGui
 
--- Speed Label
 local speedLabel = Instance.new("TextLabel")
 speedLabel.Name = "SpeedLabel"
 speedLabel.Size = UDim2.new(0, 150, 0, 30)
@@ -58,115 +53,109 @@ speedLabel.Text = "Speed: " .. speed
 speedLabel.Font = Enum.Font.Gotham
 speedLabel.Parent = screenGui
 
--- Function to start flying
-local function startFlying()
-	if flying then return end
-	flying = true
-	
+local function refreshCharacter()
 	character = player.Character
-	humanoidRootPart = character:WaitForChild("HumanoidRootPart")
-	humanoid = character:WaitForChild("Humanoid")
-	
-	-- Disable humanoid gravity and collisions
-	humanoid.PlatformStand = true
-	
-	-- Create BodyVelocity
-	bodyVelocity = Instance.new("BodyVelocity")
-	bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-	bodyVelocity.MaxForce = Vector3.new(100000, 100000, 100000)
-	bodyVelocity.Parent = humanoidRootPart
-	
-	-- Create BodyGyro
-	bodyGyro = Instance.new("BodyGyro")
-	bodyGyro.MaxTorque = Vector3.new(100000, 100000, 100000)
-	bodyGyro.P = 10000
-	bodyGyro.Parent = humanoidRootPart
-	
-	-- Flying loop
-	local flyConnection
-	flyConnection = RunService.RenderStepped:Connect(function()
-		if not flying or not character.Parent then
-			flyConnection:Disconnect()
-			return
-		end
-		
-		humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-		if not humanoidRootPart then return end
-		
-		-- Get camera direction
-		local camera = workspace.CurrentCamera
-		local moveDirection = Vector3.new(0, 0, 0)
-		
-		if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-			moveDirection = moveDirection + (camera.CFrame.LookVector)
-		end
-		if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-			moveDirection = moveDirection - (camera.CFrame.LookVector)
-		end
-		if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-			moveDirection = moveDirection - (camera.CFrame.RightVector)
-		end
-		if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-			moveDirection = moveDirection + (camera.CFrame.RightVector)
-		end
-		if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-			moveDirection = moveDirection + Vector3.new(0, 1, 0)
-		end
-		if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
-			moveDirection = moveDirection - Vector3.new(0, 1, 0)
-		end
-		
-		-- Normalize and apply speed
-		if moveDirection.Magnitude > 0 then
-			moveDirection = moveDirection.Unit
-		end
-		
-		bodyVelocity.Velocity = moveDirection * speed
-		bodyGyro.CFrame = camera.CFrame
-	end)
-	
-	onButton.BackgroundColor3 = Color3.fromRGB(100, 200, 100)
-	offButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+	if not character then return end
+	humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+	humanoid = character:FindFirstChildOfClass("Humanoid")
 end
 
--- Function to stop flying
 local function stopFlying()
 	if not flying then return end
 	flying = false
-	
-	-- Re-enable humanoid
+
 	if humanoid then
-		humanoid.PlatformStand = false
+		humanoid.AutoRotate = true
+		humanoid.Jump = false
 	end
-	
-	if bodyVelocity then
-		bodyVelocity:Destroy()
-		bodyVelocity = nil
+
+	if humanoidRootPart then
+		humanoidRootPart.AssemblyLinearVelocity = Vector3.zero
+		humanoidRootPart.AssemblyAngularVelocity = Vector3.zero
 	end
-	if bodyGyro then
-		bodyGyro:Destroy()
-		bodyGyro = nil
+
+	if flyConnection then
+		flyConnection:Disconnect()
+		flyConnection = nil
 	end
-	
+
 	onButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
 	offButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
 end
 
--- Button connections
+local function startFlying()
+	if flying then return end
+	refreshCharacter()
+	if not character or not humanoidRootPart or not humanoid then return end
+
+	flying = true
+	humanoid.AutoRotate = false
+	humanoid.Jump = false
+	humanoidRootPart.AssemblyLinearVelocity = Vector3.zero
+	humanoidRootPart.AssemblyAngularVelocity = Vector3.zero
+
+	flyConnection = RunService.RenderStepped:Connect(function()
+		if not flying then return end
+		refreshCharacter()
+		if not character or not humanoidRootPart or not humanoid then return end
+
+		local camera = workspace.CurrentCamera
+		if not camera then return end
+
+		local moveDirection = Vector3.new(0, 0, 0)
+		local forward = camera.CFrame.LookVector
+		local right = camera.CFrame.RightVector
+
+		if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+			moveDirection += forward
+		end
+		if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+			moveDirection -= forward
+		end
+		if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+			moveDirection -= right
+		end
+		if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+			moveDirection += right
+		end
+		if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+			moveDirection += Vector3.new(0, 1, 0)
+		end
+		if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+			moveDirection -= Vector3.new(0, 1, 0)
+		end
+
+		if moveDirection.Magnitude > 0 then
+			moveDirection = moveDirection.Unit
+		end
+
+		-- Prevent jump from freezing the character while flying
+		humanoid.Jump = false
+
+		local delta = workspace:GetServerTimeNow() - (workspace:GetServerTimeNow() and 0 or 0)
+		_ = delta
+
+		local moveAmount = moveDirection * speed
+		humanoidRootPart.CFrame = humanoidRootPart.CFrame + (moveAmount * 0.05)
+		humanoidRootPart.AssemblyLinearVelocity = Vector3.zero
+		humanoidRootPart.AssemblyAngularVelocity = Vector3.zero
+	end)
+
+	onButton.BackgroundColor3 = Color3.fromRGB(100, 200, 100)
+	offButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+end
+
 onButton.MouseButton1Click:Connect(startFlying)
 offButton.MouseButton1Click:Connect(stopFlying)
 
--- Handle character respawn
 player.CharacterAdded:Connect(function(newCharacter)
 	stopFlying()
 	character = newCharacter
-	humanoidRootPart = character:WaitForChild("HumanoidRootPart")
-	humanoid = character:WaitForChild("Humanoid")
+	refreshCharacter()
 end)
 
--- Cleanup on script removal
 game:BindToClose(function()
 	stopFlying()
 end)
 
-print("Fly Script Loaded! Click FLY ON to start flying, FLY OFF to stop.")
+print("Fly Script Ready. Click FLY ON to fly, FLY OFF to stop.")
