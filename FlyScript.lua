@@ -8,6 +8,7 @@ local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+local humanoid = character:WaitForChild("Humanoid")
 
 -- Flight variables
 local flying = false
@@ -64,6 +65,10 @@ local function startFlying()
 	
 	character = player.Character
 	humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+	humanoid = character:WaitForChild("Humanoid")
+	
+	-- Disable humanoid gravity and collisions
+	humanoid.PlatformStand = true
 	
 	-- Create BodyVelocity
 	bodyVelocity = Instance.new("BodyVelocity")
@@ -129,6 +134,11 @@ local function stopFlying()
 	if not flying then return end
 	flying = false
 	
+	-- Re-enable humanoid
+	if humanoid then
+		humanoid.PlatformStand = false
+	end
+	
 	if bodyVelocity then
 		bodyVelocity:Destroy()
 		bodyVelocity = nil
@@ -151,6 +161,7 @@ player.CharacterAdded:Connect(function(newCharacter)
 	stopFlying()
 	character = newCharacter
 	humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+	humanoid = character:WaitForChild("Humanoid")
 end)
 
 -- Cleanup on script removal
